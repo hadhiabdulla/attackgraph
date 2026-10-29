@@ -1,0 +1,34 @@
+Synthetic network (seed 7): 57 nodes, 111 edges, 10 controls, 4 phishable entry points
+
+== DC-01: EXPOSED
+   cheapest path (difficulty 6):
+    - user11 --MemberOf--> Helpdesk: user11 is a member of Helpdesk, so it inherits Helpdesk's rights
+    - Helpdesk --WriteACL--> IT-Ops: Helpdesk can edit the permissions of IT-Ops and add itself to it
+    - IT-Ops --MemberOf--> Backup-Operators: IT-Ops is a member of Backup-Operators, so it inherits Backup-Operators's rights
+    - Backup-Operators --AdminTo--> DC-01: Backup-Operators has local administrator rights on DC-01
+   attack paths up to 8 hops: 212
+== FINANCE-DB: EXPOSED
+   cheapest path (difficulty 5):
+    - user21 --MemberOf--> Contractors: user21 is a member of Contractors, so it inherits Contractors's rights
+    - Contractors --WriteACL--> DB-Admins: Contractors can edit the permissions of DB-Admins and add itself to it
+    - DB-Admins --AdminTo--> FINANCE-DB: DB-Admins has local administrator rights on FINANCE-DB
+   attack paths up to 8 hops: 260
+
+Optimal control set (exact search, all targets unreachable): cost 10
+    - ACL-1 (1): Fix Contractors write access on DB-Admins
+    - ACL-2 (1): Fix Helpdesk write access on IT-Ops
+    - TIERING (8): Privileged accounts never log on to workstations
+Greedy control set (best paths-removed per cost): cost 11
+    - JIT-ADMIN (4): Remove standing local admin from groups
+    - KERB (2): Long random service-account passwords (gMSA)
+    - RDP-MFA (3): MFA + allow-list for remote desktop
+    - ACL-1 (1): Fix Contractors write access on DB-Admins
+    - ACL-2 (1): Fix Helpdesk write access on IT-Ops
+Minimum number of individual edges to cut (graph min-cut): 3
+  (real fixes come as controls that remove many edges at once, so this is only a comparison)
+
+Best 1 control(s) by paths removed: TIERING (cost 8): paths 472 -> 2
+Best 2 control(s) by paths removed: ACL-1, TIERING (cost 9): paths 472 -> 1
+Best 3 control(s) by paths removed: ACL-1, ACL-2, TIERING (cost 10): paths 472 -> 0
+
+Verification (recomputed after applying fixes): exposed targets after optimal = none | after greedy = none
