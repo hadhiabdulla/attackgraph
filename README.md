@@ -4,8 +4,6 @@ Exposure and fix-prioritisation on a synthetic enterprise network. It models pri
 
 It is a **model**, not a scanner. It runs only on generated demo networks, never probes real systems, and says nothing about the security of any real organisation.
 
-![All attack paths in red](docs/screenshot-exposed.png)
-
 ## Run it
 
 ```bash
@@ -54,11 +52,6 @@ Best 1 control by paths removed: TIERING (cost 8): paths 472 -> 2
 ```
 
 Full text in [`docs/sample-output.txt`](docs/sample-output.txt).
-
-| Fix set applied | Result |
-|---|---|
-| Privileged accounts never log on to workstations only | ![](docs/screenshot-tiering.png) |
-| Optimal set | ![](docs/screenshot-optimal.png) |
 
 ## Tests
 
