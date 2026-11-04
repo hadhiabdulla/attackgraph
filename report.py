@@ -43,7 +43,7 @@ def write_html(g, res, path):
               "w": EDGE_TYPES[e["type"]][0], "why": EDGE_TYPES[e["type"]][1].format(a=e["src"], b=e["dst"])} for e in g.edges]
     controls = [{"id": k, **v} for k, v in g.controls.items()]
     data = {"nodes": nodes, "edges": edges, "controls": controls,
-            "optimal": res["optimal_cut"]["controls"], "greedy": res["greedy_cut"]["controls"],
+            "optimal": res["optimal_cut"]["controls"] if res["optimal_cut"] else [], "greedy": res["greedy_cut"]["controls"],
             "W": W, "H": H}
     html = TEMPLATE.replace("__DATA__", json.dumps(data))
     open(path, "w").write(html)
