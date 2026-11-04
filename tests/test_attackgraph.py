@@ -65,4 +65,22 @@ try:
     print("JS/Python parity OK on", len(sets), "fix sets")
 except FileNotFoundError:
     print("node not found: skipped JS parity check")
+# 8. network size parameters + infeasible-cut handling
+small = ag.generate(3, users=6, workstations=4, servers=2)
+assert [(e["src"], e["dst"], e["type"]) for e in ag.generate(3, users=6, workstations=4, servers=2).edges] == \
+       [(e["src"], e["dst"], e["type"]) for e in small.edges]
+r_small = ag.analyse(small)
+assert r_small["nodes"] == len(small.nodes)
+# seed 2 gives an entry point a route no control removes: reported, never a crash
+g2 = ag.generate(2)
+r2 = ag.analyse(g2)
+if g2.exposed_targets(sorted(g2.controls)):
+    assert r2["optimal_cut"] is None and r2["uncuttable_targets"]
+else:
+    assert r2["optimal_cut"] is not None
+# every edge endpoint is a real node at any size
+for gg in (g, small, g2, ag.generate(11, users=40, workstations=24, servers=6)):
+    assert all(e["src"] in gg.nodes and e["dst"] in gg.nodes for e in gg.edges)
+print("size + infeasible-cut tests OK")
+
 print("All AttackGraph tests passed")
