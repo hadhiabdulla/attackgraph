@@ -240,7 +240,11 @@ class Graph:
 # ------------------------------------------------------------------ generator
 def generate(seed=7, users=24, workstations=16, servers=6):
     rnd = random.Random(seed)
+    workstations = max(1, workstations)
+    servers = max(0, min(6, servers))
     g = Graph()
+    def pick(pop, k):
+        return rnd.sample(pop, min(len(pop), k))
     g.add_control("LAPS", "Unique local admin passwords (LAPS)", 5, "Randomise each machine's local administrator password")
     g.add_control("RDP-MFA", "MFA + allow-list for remote desktop", 3, "Require MFA and restrict who may use RDP")
     g.add_control("TIERING", "Privileged accounts never log on to workstations", 8, "Admin tiering / protected logon policy")
@@ -257,7 +261,7 @@ def generate(seed=7, users=24, workstations=16, servers=6):
     for n in ws: g.add_node(n, "workstation")
     for n in sv: g.add_node(n, "server")
     for n in svc: g.add_node(n, "svc")
-    phish = set(rnd.sample(usr, max(3, users // 6)))
+    phish = set(pick(usr, max(3, users // 6)))
     for n in usr: g.add_node(n, "user", entry=(n in phish))
     g.add_node("DC-01", "crown", target=True)
     g.add_node("FINANCE-DB", "crown", target=True)
@@ -268,7 +272,7 @@ def generate(seed=7, users=24, workstations=16, servers=6):
         if r < 0.12: g.add_edge(u, "Helpdesk", "MemberOf", None)
         elif r < 0.18: g.add_edge(u, "Contractors", "MemberOf", None)
         elif r < 0.22: g.add_edge(u, "IT-Ops", "MemberOf", None)
-    admins = rnd.sample(usr, 2)
+    admins = pick(usr, 2)
     for u in admins: g.add_edge(u, "Domain-Admins", "MemberOf", None)
     g.add_edge("Domain-Admins", "DC-01", "AdminTo", None)
     g.add_edge("Domain-Admins", "FINANCE-DB", "AdminTo", None)
@@ -281,34 +285,38 @@ def generate(seed=7, users=24, workstations=16, servers=6):
     for w in ws: g.add_edge("Helpdesk", w, "AdminTo", "JIT-ADMIN")
     for s in sv[:4]: g.add_edge("IT-Ops", s, "AdminTo", "JIT-ADMIN")
     # RDP
-    for u in rnd.sample(usr, 8):
+    for u in pick(usr, 8):
         g.add_edge(u, rnd.choice(ws), "CanRDP", "RDP-MFA")
     for s in sv:
         g.add_edge("Contractors", s, "CanRDP", "RDP-MFA")
     # cached privileged sessions on workstations/servers (host -> principal)
-    for w in rnd.sample(ws, 5):
+    for w in pick(ws, 5):
         g.add_edge(w, rnd.choice(admins), "HasSession", "TIERING")
     g.add_edge(rnd.choice(ws), "IT-Ops", "HasSession", "TIERING")
-    g.add_edge("BACKUP-01", "Backup-Operators", "HasSession", "TIERING")
-    g.add_edge("SQL-01", "DB-Admins", "HasSession", "TIERING")
+    if "BACKUP-01" in sv:
+        g.add_edge("BACKUP-01", "Backup-Operators", "HasSession", "TIERING")
+    if "SQL-01" in sv:
+        g.add_edge("SQL-01", "DB-Admins", "HasSession", "TIERING")
     # service accounts
     for u in usr[:6]:
         pass
     for s in svc:
-        for u in rnd.sample(usr, 3):
+        for u in pick(usr, 3):
             g.add_edge(u, s, "Kerberoast", "KERB")
-    g.add_edge("svc-backup", "BACKUP-01", "AdminTo", None)
-    g.add_edge("svc-sql", "SQL-01", "AdminTo", None)
-    g.add_edge("svc-web", "APP-01", "AdminTo", None)
+    for account, host in (("svc-backup", "BACKUP-01"), ("svc-sql", "SQL-01"), ("svc-web", "APP-01")):
+        if host in sv:
+            g.add_edge(account, host, "AdminTo", None)
     g.add_edge("svc-backup", "Backup-Operators", "MemberOf", "SVC-BKP"); g.add_control("SVC-BKP", "Remove svc-backup from Backup-Operators", 1, "Single membership fix")
     # shared local admin passwords
     for a, b in itertools.combinations(ws[:6], 2):
         g.add_edge(a, b, "PasswordReuse", "LAPS"); g.add_edge(b, a, "PasswordReuse", "LAPS")
     for a, b in [("APP-01", "APP-02"), ("APP-02", "APP-01"), ("FILE-01", "FILE-02"), ("FILE-02", "FILE-01"),
                  ("APP-01", ws[0]), (ws[0], "APP-01"), ("SQL-01", "APP-02"), ("APP-02", "SQL-01")]:
-        g.add_edge(a, b, "PasswordReuse", "LAPS")
+        if a in g.nodes and b in g.nodes:
+            g.add_edge(a, b, "PasswordReuse", "LAPS")
     # a compromised server hands over the crown-jewel database
-    g.add_edge("SQL-01", "FINANCE-DB", "HasSession", "TIERING")
+    if "SQL-01" in sv:
+        g.add_edge("SQL-01", "FINANCE-DB", "HasSession", "TIERING")
     return g
 
 
@@ -325,11 +333,13 @@ def analyse(g):
             "paths_up_to_8_hops": n, "count_capped": capped}
     opt = g.optimal_cut()
     gr = g.greedy_cut()
-    out["optimal_cut"] = {"controls": list(opt[1]), "cost": opt[0]}
+    out["optimal_cut"] = {"controls": list(opt[1]), "cost": opt[0]} if opt else None
     out["greedy_cut"] = {"controls": list(gr[1]), "cost": gr[0]}
     out["min_single_edge_cut"] = g.min_edge_cut()
     out["best_k"] = {str(k): g.best_k(k) for k in (1, 2, 3)}
-    out["verify"] = {"exposed_after_optimal": g.exposed_targets(opt[1]),
+    # targets that stay reachable even with every control bought
+    out["uncuttable_targets"] = g.exposed_targets(sorted(g.controls))
+    out["verify"] = {"exposed_after_optimal": g.exposed_targets(opt[1]) if opt else None,
                      "exposed_after_greedy": g.exposed_targets(gr[1])}
     return out
 
@@ -338,10 +348,12 @@ def main():
     ap = argparse.ArgumentParser(description="AttackGraph: exposure and fix prioritisation on a synthetic network")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--users", type=int, default=24)
+    ap.add_argument("--workstations", type=int, default=16)
+    ap.add_argument("--servers", type=int, default=6, help="0-6; the demo uses six named servers")
     ap.add_argument("--json", help="write full analysis JSON here")
     ap.add_argument("--html", help="write the interactive report here")
     a = ap.parse_args()
-    g = generate(a.seed, a.users)
+    g = generate(a.seed, a.users, a.workstations, a.servers)
     res = analyse(g)
     print(f"Synthetic network (seed {a.seed}): {res['nodes']} nodes, {res['edges']} edges, "
           f"{res['controls']} controls, {len(res['entries'])} phishable entry points\n")
@@ -358,15 +370,22 @@ def main():
         for x in r["controls"]:
             print(f"    - {x} ({c[x]['cost']}): {c[x]['name']}")
     print()
-    show("Optimal control set (exact search, all targets unreachable)", res["optimal_cut"])
+    if res["optimal_cut"]:
+        show("Optimal control set (exact search, all targets unreachable)", res["optimal_cut"])
+    else:
+        print("Optimal control set: none - even with every control applied, "
+              + ", ".join(res["uncuttable_targets"])
+              + " stay reachable (an entry point has a direct route no control in this model removes)")
     show("Greedy control set (best paths-removed per cost)", res["greedy_cut"])
     print(f"Minimum number of individual edges to cut (graph min-cut): {res['min_single_edge_cut']}")
     print("  (real fixes come as controls that remove many edges at once, so this is only a comparison)\n")
     for k, r in res["best_k"].items():
         print(f"Best {k} control(s) by paths removed: {', '.join(r['controls'])} "
               f"(cost {r['cost']}): paths {r['paths_before']} -> {r['paths_after']}")
+    after_opt = res["verify"]["exposed_after_optimal"]
+    after_opt = "n/a (no complete cut exists)" if after_opt is None else (after_opt or "none")
     print("\nVerification (recomputed after applying fixes): exposed targets after optimal =",
-          res["verify"]["exposed_after_optimal"] or "none", "| after greedy =",
+          after_opt, "| after greedy =",
           res["verify"]["exposed_after_greedy"] or "none")
     if a.json:
         json.dump(res, open(a.json, "w"), indent=1)
