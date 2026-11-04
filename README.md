@@ -14,6 +14,8 @@ python3 attackgraph.py --html docs/demo.html        # interactive report
 python3 tests/test_attackgraph.py                   # tests
 ```
 
+Change the generated network with `--seed`, `--users`, `--workstations` and `--servers` (the demo is built from six named servers).
+
 Python 3.8+, standard library only. Open `docs/demo.html` in a browser: tick fixes on the left and watch the red attack paths disappear. The side panel lists the cheapest attack path to each crown jewel in plain text (readable on a phone), and the graph can be zoomed (+ / - buttons, mouse wheel) and dragged. The page works offline and makes no network requests.
 
 ## The model
@@ -36,7 +38,7 @@ Every edge has a difficulty weight (used for cheapest-path search). Most edges a
 
 * **Cheapest attack path** to each crown-jewel asset (Dijkstra), printed step by step with the reason for each hop.
 * **Number of attack paths** (simple paths up to 8 hops).
-* **Optimal control set:** the cheapest set of controls after which no crown jewel is reachable, found by exhaustive search over all control subsets (exact for this model, up to 18 controls).
+* **Optimal control set:** the cheapest set of controls after which no crown jewel is reachable, found by exhaustive search over all control subsets (exact for this model, up to 18 controls). Some networks have no such set - a phishable user can hold a direct route no control in this model removes - and then it says so instead of inventing one.
 * **Greedy control set:** repeatedly buy the control with the most paths removed per unit cost. Compared with the optimum, so you can see when the simple heuristic is wrong.
 * **Best k controls** by paths removed (exact), for limited budgets.
 * **Minimum edge cut** (max-flow): the fewest *individual edges* that would separate entries from targets. It differs from the control view because real fixes come as controls that remove many edges, and some cut the most paths without cutting every path. Both are shown on purpose.
