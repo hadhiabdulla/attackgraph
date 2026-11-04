@@ -43,7 +43,8 @@ def write_html(g, res, path):
               "w": EDGE_TYPES[e["type"]][0], "why": EDGE_TYPES[e["type"]][1].format(a=e["src"], b=e["dst"])} for e in g.edges]
     controls = [{"id": k, **v} for k, v in g.controls.items()]
     data = {"nodes": nodes, "edges": edges, "controls": controls,
-            "optimal": res["optimal_cut"]["controls"] if res["optimal_cut"] else [], "greedy": res["greedy_cut"]["controls"],
+            "optimal": res["optimal_cut"]["controls"] if res["optimal_cut"] else None, "greedy": res["greedy_cut"]["controls"],
+            "uncuttable": res["uncuttable_targets"],
             "W": W, "H": H}
     html = TEMPLATE.replace("__DATA__", json.dumps(data))
     open(path, "w").write(html)
@@ -77,6 +78,7 @@ TEMPLATE = r"""<!doctype html>
  <h2>Fixes (tick to apply)</h2>
  <div id="ctls"></div>
  <div style="margin-top:8px"><button id="bOpt">Apply optimal set</button><button id="bGr" class="alt">Apply greedy set</button><button id="bNone" class="alt">Reset</button></div>
+ <div class="sub" id="optnote" style="display:none;margin-top:2px"></div>
  <div class="sub" id="cost" style="margin-top:6px"></div>
  <h2>Legend</h2><div class="legend" id="legend"></div>
  <div class="sub" style="margin-top:6px">Red edges lie on an attack path (reachable from a phishable entry, leading to a crown-jewel asset). Dashed edges are removed by a ticked fix. Hover an edge for the reason.</div>
@@ -152,7 +154,15 @@ D.controls.forEach(c=>{const d=document.createElement("label");d.className="ctl"
   d.querySelector("input").addEventListener("change",ev=>{ev.target.checked?fixed.add(c.id):fixed.delete(c.id);render();});
   ctls.appendChild(d);});
 function setSet(a){fixed.clear();a.forEach(x=>fixed.add(x));render();}
-document.getElementById("bOpt").onclick=()=>setSet(D.optimal);
+document.getElementById("bOpt").onclick=()=>setSet(D.optimal||[]);
+if(!D.optimal){
+  const b=document.getElementById("bOpt");
+  b.disabled=true;b.style.opacity=.45;b.style.cursor="default";b.textContent="No complete cut exists";b.onclick=null;
+  const n=document.getElementById("optnote");
+  n.style.display="block";
+  n.textContent="No set of fixes cuts every attack path here: "+D.uncuttable.join(", ")
+    +" stay reachable even with every fix ticked - an entry point has a direct route no fix in this model removes. The greedy set is the best partial cover.";
+}
 document.getElementById("bGr").onclick=()=>setSet(D.greedy);
 document.getElementById("bNone").onclick=()=>setSet([]);
 const COLORS={user:"#60a5fa",group:"#a78bfa",workstation:"#34d399",svc:"#fbbf24",server:"#f472b6",crown:"#ef4444"};
@@ -171,7 +181,7 @@ window.addEventListener("pointermove",ev=>{if(!drag)return;const r=svg.getBoundi
 svg.addEventListener("wheel",ev=>{ev.preventDefault();const r=svg.getBoundingClientRect();
   zoom(ev.deltaY<0?.8:1.25,vb.x+(ev.clientX-r.left)*vb.w/r.width,vb.y+(ev.clientY-r.top)*vb.h/r.height);},{passive:false});
 render();
-if(location.hash=="#optimal")setSet(D.optimal);else if(location.hash=="#greedy")setSet(D.greedy);else if(location.hash=="#tiering")setSet(["TIERING"]);
+if(location.hash=="#optimal"&&D.optimal)setSet(D.optimal);else if(location.hash=="#greedy")setSet(D.greedy);else if(location.hash=="#tiering")setSet(["TIERING"]);
 window.__attackgraph={fixed,analyse,setSet,D};
 </script></body></html>
 """.replace("__W__", "1180").replace("__H__", "760")
