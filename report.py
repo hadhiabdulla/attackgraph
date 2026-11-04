@@ -161,7 +161,7 @@ if(!D.optimal){
   const n=document.getElementById("optnote");
   n.style.display="block";
   n.textContent="No set of fixes cuts every attack path here: "+D.uncuttable.join(", ")
-    +" stay reachable even with every fix ticked - an entry point has a direct route no fix in this model removes. The greedy set is the best partial cover.";
+    +" stay reachable even with every fix ticked - an entry point has a direct route no fix in this model removes. The greedy set is a heuristic partial solution; it may leave attack paths.";
 }
 document.getElementById("bGr").onclick=()=>setSet(D.greedy);
 document.getElementById("bNone").onclick=()=>setSet([]);
