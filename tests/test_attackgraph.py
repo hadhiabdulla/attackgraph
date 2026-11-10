@@ -83,4 +83,25 @@ for gg in (g, small, g2, ag.generate(11, users=40, workstations=24, servers=6)):
     assert all(e["src"] in gg.nodes and e["dst"] in gg.nodes for e in gg.edges)
 print("size + infeasible-cut tests OK")
 
+# 9. network export: complete, consistent and stable
+d = g.to_dict()
+assert {n["id"] for n in d["nodes"]} == set(g.nodes)
+assert len(d["edges"]) == len(g.edges) and len(d["controls"]) == len(g.controls)
+for n in d["nodes"]:
+    assert set(n) == {"id", "type", "entry", "target"}
+for e in d["edges"]:
+    assert e["src"] in g.nodes and e["dst"] in g.nodes
+    assert e["control"] is None or e["control"] in g.controls
+    assert e["weight"] == ag.EDGE_TYPES[e["type"]][0]
+assert json.loads(json.dumps(d)) == d, "export must stay JSON-able"
+assert d == ag.generate(7).to_dict(), "export must be deterministic"
+# the CLI writes the same data
+gpath = os.path.join(tempfile.mkdtemp(), "net.json")
+r = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..", "attackgraph.py"),
+                    "--seed", "7", "--graph", gpath], capture_output=True, text=True, timeout=120)
+assert r.returncode == 0, r.stderr
+cli = json.load(open(gpath))
+assert cli == d and len(cli["nodes"]) == len(g.nodes)
+print("network export tests OK")
+
 print("All AttackGraph tests passed")
