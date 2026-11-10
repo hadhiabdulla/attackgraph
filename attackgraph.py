@@ -151,6 +151,15 @@ class Graph:
             lines.append(f"{e['src']} --{e['type']}--> {e['dst']}: " + tpl.format(a=e["src"], b=e["dst"]))
         return lines
 
+    def to_dict(self):
+        """The whole synthetic network as plain JSON-able data, so other
+        tooling can load the same graph the analysis ran on."""
+        return {
+            "nodes": [{"id": n, **d} for n, d in self.nodes.items()],
+            "edges": [{**e, "weight": EDGE_TYPES[e["type"]][0]} for e in self.edges],
+            "controls": [{"id": c, **d} for c, d in self.controls.items()],
+        }
+
     # ---------------------------------------------------------- remediation
     def cost(self, fixed):
         return sum(self.controls[c]["cost"] for c in fixed)
@@ -351,6 +360,7 @@ def main():
     ap.add_argument("--workstations", type=int, default=16)
     ap.add_argument("--servers", type=int, default=6, help="0-6; the demo uses six named servers")
     ap.add_argument("--json", help="write full analysis JSON here")
+    ap.add_argument("--graph", help="write the generated network itself (nodes, edges, controls) as JSON here")
     ap.add_argument("--html", help="write the interactive report here")
     a = ap.parse_args()
     g = generate(a.seed, a.users, a.workstations, a.servers)
@@ -387,6 +397,9 @@ def main():
     print("\nVerification (recomputed after applying fixes): exposed targets after optimal =",
           after_opt, "| after greedy =",
           res["verify"]["exposed_after_greedy"] or "none")
+    if a.graph:
+        json.dump(g.to_dict(), open(a.graph, "w"), indent=1)
+        print("wrote", a.graph)
     if a.json:
         json.dump(res, open(a.json, "w"), indent=1)
     if a.html:
