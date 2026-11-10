@@ -11,6 +11,7 @@ git clone https://github.com/hadhiabdulla/attackgraph.git
 cd attackgraph
 python3 attackgraph.py                              # analysis in the terminal
 python3 attackgraph.py --html docs/demo.html        # interactive report
+python3 attackgraph.py --graph network.json         # export the generated network
 python3 tests/test_attackgraph.py                   # tests
 ```
 
@@ -43,6 +44,7 @@ Every edge has a difficulty weight (used for cheapest-path search). Most edges a
 * **Best k controls** by paths removed (exact), for limited budgets.
 * **Minimum edge cut** (max-flow): the fewest *individual edges* that would separate entries from targets. It differs from the control view because real fixes come as controls that remove many edges, and some cut the most paths without cutting every path. Both are shown on purpose.
 * **Verification:** the reachability analysis is re-run after the fixes are applied, and the report repeats the check in the browser.
+* **Network export:** `--graph` writes the generated network itself - every node with its type and flags, every edge with its type, weight and the control that removes it, and every control with its cost - as JSON, so other tooling can load the same graph the analysis ran on. `--json` does the same for the analysis results.
 
 Sample output for the default network (`seed 7`):
 
