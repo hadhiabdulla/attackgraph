@@ -210,6 +210,30 @@ class Graph:
         return {"controls": best[1], "cost": self.cost(best[1]),
                 "paths_before": base, "paths_after": best[0][0]}
 
+    def budget_cut(self, budget):
+        """Exact: the control set within budget that leaves the fewest
+        entry->target attack paths (ties: cheaper, then fewer controls).
+        Answers the analyst's real question - "I can spend X, what do I fix?" -
+        which best_k cannot, since it fixes a control count, not a cost."""
+        if budget < 0:
+            raise ValueError("budget must be non-negative")
+        cids = sorted(self.controls)
+        if len(cids) > 18:
+            raise ValueError("too many controls for exhaustive search (maximum 18)")
+        base = sum(self.count_paths(t)[0] for t in self.targets())
+        best = None
+        for k in range(len(cids) + 1):
+            for sub in itertools.combinations(cids, k):
+                c = self.cost(sub)
+                if c > budget:
+                    continue
+                left = sum(self.count_paths(t, sub)[0] for t in self.targets())
+                key = (left, c, len(sub), sub)
+                if best is None or key < best[0]:
+                    best = (key, sub)
+        return {"controls": best[1], "cost": best[0][1],
+                "paths_before": base, "paths_after": best[0][0]}
+
     def min_edge_cut(self):
         """Graph-theoretic minimum number of single edges to delete so that no
         target is reachable (unit capacities, max-flow). Ignores that real fixes
@@ -361,8 +385,12 @@ def main():
     ap.add_argument("--servers", type=int, default=6, help="0-6; the demo uses six named servers")
     ap.add_argument("--json", help="write full analysis JSON here")
     ap.add_argument("--graph", help="write the generated network itself (nodes, edges, controls) as JSON here")
+    ap.add_argument("--budget", type=int, action="append", metavar="COST",
+                    help="best control set within this cost budget (fewest paths left; repeatable)")
     ap.add_argument("--html", help="write the interactive report here")
     a = ap.parse_args()
+    if any(b < 0 for b in a.budget or []):
+        ap.error("--budget must be non-negative")
     g = generate(a.seed, a.users, a.workstations, a.servers)
     res = analyse(g)
     print(f"Synthetic network (seed {a.seed}): {res['nodes']} nodes, {res['edges']} edges, "
@@ -392,6 +420,11 @@ def main():
     for k, r in res["best_k"].items():
         print(f"Best {k} control(s) by paths removed: {', '.join(r['controls'])} "
               f"(cost {r['cost']}): paths {r['paths_before']} -> {r['paths_after']}")
+    for b in a.budget or []:
+        r = g.budget_cut(b)
+        names = ", ".join(r["controls"]) or "(nothing affordable)"
+        print(f"Best fix within budget {b}: {names} (cost {r['cost']}): "
+              f"paths {r['paths_before']} -> {r['paths_after']}")
     after_opt = res["verify"]["exposed_after_optimal"]
     after_opt = "n/a (no complete cut exists)" if after_opt is None else (after_opt or "none")
     print("\nVerification (recomputed after applying fixes): exposed targets after optimal =",
