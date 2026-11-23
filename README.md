@@ -17,6 +17,8 @@ python3 tests/test_attackgraph.py                   # tests
 
 Change the generated network with `--seed`, `--users`, `--workstations` and `--servers` (the demo is built from six named servers).
 
+Use `python3 attackgraph.py --budget 3 --budget 5 --budget 10` to compare cost limits. Costs are synthetic model units, not currency. Budget ranking uses the same simple-path counts up to 8 hops, capped at 200,000 per target, so it is not an optimization over all possible paths. Ties prefer lower cost, then fewer controls.
+
 Python 3.8+, standard library only. Open `docs/demo.html` in a browser: tick fixes on the left and watch the red attack paths disappear. The side panel lists the cheapest attack path to each crown jewel in plain text (readable on a phone), and the graph can be zoomed (+ / - buttons, mouse wheel) and dragged. The page works offline and makes no network requests.
 
 ## The model
@@ -41,7 +43,8 @@ Every edge has a difficulty weight (used for cheapest-path search). Most edges a
 * **Number of attack paths** (simple paths up to 8 hops).
 * **Optimal control set:** the cheapest set of controls after which no crown jewel is reachable, found by exhaustive search over all control subsets (exact for this model, up to 18 controls). Some networks have no such set - a phishable user can hold a direct route no control in this model removes - and then it says so instead of inventing one.
 * **Greedy control set:** repeatedly buy the control with the most paths removed per unit cost. Compared with the optimum, so you can see when the simple heuristic is wrong.
-* **Best k controls** by paths removed (exact), for limited budgets.
+* **Best k controls** by paths removed (exact), for a fixed control count.
+* **Best fix within a cost budget:** `--budget N` finds the control set costing at most N that leaves the fewest attack paths (exact search over all in-budget subsets, up to 18 controls; repeatable). This answers the question an analyst actually has - "I can spend 5, what do I fix?" - which the fixed-count best-k cannot: at budget 5 the answer is LAPS alone (472 -> 16 paths), while the 1-control answer (TIERING) already costs 8.
 * **Minimum edge cut** (max-flow): the fewest *individual edges* that would separate entries from targets. It differs from the control view because real fixes come as controls that remove many edges, and some cut the most paths without cutting every path. Both are shown on purpose.
 * **Verification:** the reachability analysis is re-run after the fixes are applied, and the report repeats the check in the browser.
 * **Network export:** `--graph` writes the generated network itself - every node with its type and flags, every edge with its type, weight and the control that removes it, and every control with its cost - as JSON, so other tooling can load the same graph the analysis ran on. `--json` does the same for the analysis results.
@@ -53,6 +56,7 @@ Optimal control set: cost 10  -> ACL-1, ACL-2, TIERING
 Greedy control set:  cost 11  -> JIT-ADMIN, KERB, RDP-MFA, ACL-1, ACL-2
 Minimum number of individual edges to cut (graph min-cut): 3
 Best 1 control by paths removed: TIERING (cost 8): paths 472 -> 2
+Best fix within budget 5: LAPS (cost 5): paths 472 -> 16
 ```
 
 Full text in [`docs/sample-output.txt`](docs/sample-output.txt).
