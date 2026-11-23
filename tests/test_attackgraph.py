@@ -104,4 +104,34 @@ cli = json.load(open(gpath))
 assert cli == d and len(cli["nodes"]) == len(g.nodes)
 print("network export tests OK")
 
+# 10. budgeted remediation: in-budget, and no in-budget set does better (independent brute force)
+r0 = g.budget_cut(0)
+assert r0["controls"] == () and r0["cost"] == 0 and r0["paths_after"] == r0["paths_before"]
+for b in (3, 5, 8, 10):
+    r = g.budget_cut(b)
+    assert r["cost"] <= b and r["paths_after"] <= r["paths_before"]
+    better = [s for k in range(len(cids) + 1) for s in itertools.combinations(cids, k)
+              if g.cost(s) <= b and sum(g.count_paths(t, s)[0] for t in g.targets()) < r["paths_after"]]
+    assert better == [], (b, better)
+assert g.budget_cut(10)["paths_after"] == 0, "budget covering the optimal cut must cut everything"
+assert g.budget_cut(0)["paths_after"] >= g.budget_cut(5)["paths_after"] >= g.budget_cut(10)["paths_after"], \
+    "a bigger budget must never leave more paths"
+r2b = g2.budget_cut(100)
+assert r2b["paths_after"] == (sum(g2.count_paths(t, sorted(g2.controls))[0] for t in g2.targets())), \
+    "budget covering every control must match applying them all"
+try:
+    g.budget_cut(-1)
+    raise AssertionError("negative budget accepted")
+except ValueError:
+    pass
+cli_budget = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..", "attackgraph.py"),
+                             "--budget", "0", "--budget", "5"], capture_output=True, text=True, timeout=120)
+assert cli_budget.returncode == 0, cli_budget.stderr
+assert "Best fix within budget 0:" in cli_budget.stdout
+assert "Best fix within budget 5: LAPS (cost 5): paths 472 -> 16" in cli_budget.stdout
+bad_budget = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..", "attackgraph.py"),
+                             "--budget", "-1"], capture_output=True, text=True, timeout=120)
+assert bad_budget.returncode == 2 and "--budget must be non-negative" in bad_budget.stderr
+print("budget tests OK")
+
 print("All AttackGraph tests passed")
